@@ -115,9 +115,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 [DrHazemAli](https://github.com/DrHazemAli) - Skytells AI Research
 
-<<<<<<< HEAD
 **Repository:** [optimal-training-calculator](https://github.com/skytells-research/optimal-training-calculator)
-=======
-**Repository:** [optimal-training-calculator](https://github.com/skytells-research/optimal-training-calculator)
-
->>>>>>> 14175c638debd1169ce89893ba0cef91a8398577
