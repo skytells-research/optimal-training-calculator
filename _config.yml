@@ -1,0 +1,9 @@
+remote_theme: pages-themes/cayman@v0.2.0
+plugins:
+- jekyll-remote-theme
+
+title: Optimal Training Parameters Calculator
+description: A sophisticated web tool by Skytells AI Research that helps machine learning practitioners calculate optimal training parameters for their models. Using advanced algorithms, this calculator provides intelligent recommendations for key hyperparameters like batch size, learning rate, and epochs based on your dataset and training requirements. Built with Next.js and React, it features real-time calculations, cost estimations for various GPU instances, and support for different model architectures including VAE, CNN, ResNet, and Transformer models.
+
+plugins:
+- jekyll-remote-theme # add this line to the plugins list if you already have one
