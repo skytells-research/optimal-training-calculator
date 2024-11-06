@@ -12,6 +12,12 @@
     --background: #0a0a0a;
     --foreground: #ededed;
   }
+  select {
+    color: #292929;
+  }
+  input {
+    color: #292929;
+  }
 }
 
 body {
