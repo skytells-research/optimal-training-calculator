@@ -6,23 +6,25 @@ import { BlockMath } from "react-katex";
 import "katex/dist/katex.min.css";
 
 export default function Home() {
+  // State Variables
   const [assetsCount, setAssetsCount] = useState("");
   const [modelType, setModelType] = useState("VAE");
+  const [isAdvancedMode, setIsAdvancedMode] = useState(false); // Advanced Mode Toggle
   const [isFinetune, setIsFinetune] = useState(false);
-  const [isLoRA, setIsLoRA] = useState(false);
-  const [loraRank, setLoraRank] = useState("32"); // New field
+  const [isLoRa, setIsLoRa] = useState(false);
+  const [loraRank, setLoraRank] = useState("32");
   const [hardware, setHardware] = useState("local");
 
-  // New input fields
+  // Input Fields
   const [gpuMemory, setGpuMemory] = useState("");
-  const [imageWidth, setImageWidth] = useState("");
-  const [imageHeight, setImageHeight] = useState("");
+  const [imageWidth, setImageWidth] = useState("1024");
+  const [imageHeight, setImageHeight] = useState("1024");
   const [imageChannels, setImageChannels] = useState("3");
   const [precision, setPrecision] = useState("16"); // Default to 16-bit precision
 
   const [batchSize, setBatchSize] = useState("1"); // Default to 1
   const [learningRate, setLearningRate] = useState("");
-  const [optimizer, setOptimizer] = useState(""); // New field
+  const [optimizer, setOptimizer] = useState("adamw8bit"); // Default optimizer
   const [totalSteps, setTotalSteps] = useState("");
   const [epochs, setEpochs] = useState("");
   const [stepsPerEpoch, setStepsPerEpoch] = useState("");
@@ -53,6 +55,18 @@ export default function Home() {
     "Multimodal Diffusion Transformer Architecture",
   ];
 
+  const optimizerOptions = [
+    "prodigy",
+    "adam8bit",
+    "adamw8bit",
+    "lion8bit",
+    "adam",
+    "adamw",
+    "lion",
+    "adagrad",
+    "adafactor",
+  ];
+
   useEffect(() => {
     if (showResults) {
       recalculateParams();
@@ -70,27 +84,31 @@ export default function Home() {
     imageChannels,
     precision,
     modelType,
-    isLoRA,
+    isLoRa,
     loraRank,
+    optimizer,
+    hardware,
+    isAdvancedMode,
   ]);
 
   const resetResults = () => {
     setAssetsCount("");
     setModelType("VAE");
+    setIsAdvancedMode(false);
     setIsFinetune(false);
-    setIsLoRA(false);
+    setIsLoRa(false);
     setLoraRank("32");
     setHardware("local");
 
     setGpuMemory("");
-    setImageWidth("");
-    setImageHeight("");
+    setImageWidth("1024");
+    setImageHeight("1024");
     setImageChannels("3");
     setPrecision("16");
 
     setBatchSize("1");
     setLearningRate("");
-    setOptimizer("");
+    setOptimizer("adamw8bit");
     setEpochs("");
     setStepsPerEpoch("");
     setTotalSteps("");
@@ -110,7 +128,14 @@ export default function Home() {
   const recalculateParams = () => {
     let steps = [];
     let hintsList = [];
-    let bs = 1, lr, ep, spe, totalStepsVal, time, cost, opt = "adamw"; // Default optimizer
+    let bs = 1,
+      lr,
+      ep,
+      spe,
+      totalStepsVal,
+      time,
+      cost,
+      opt = optimizer;
 
     const assets = Number(assetsCount);
     const userBatchSize = parseInt(batchSize);
@@ -132,18 +157,20 @@ export default function Home() {
     }
 
     // Validate GPU Memory
-    if (!gpuMem || gpuMem <= 0) {
-      hintsList.push("Please enter a valid GPU memory size.");
+    if ((isAdvancedMode || hardware === "local") && (!gpuMem || gpuMem <= 0)) {
+      hintsList.push({ message: "Please enter a valid GPU memory size.", level: "red" });
     }
 
     // Batch Size Recommendation
-    if (isLoRA) {
+    if (isLoRa) {
       bs = 1;
       setBatchSize("1");
-      steps.push(`\\text{Batch Size (LoRA Applied)} = ${bs}`);
+      steps.push(`\\text{Batch Size (LoRa Applied)} = ${bs}`);
     } else if (imageModelTypes.includes(modelType)) {
-      // For image models without LoRA
-      // ... existing logic
+      // For image models without LoRa
+      bs = 1;
+      setBatchSize("1");
+      steps.push(`\\text{Batch Size} = ${bs}`);
     } else {
       // For non-image models
       bs = 1;
@@ -152,26 +179,28 @@ export default function Home() {
     }
 
     // Optimizer Recommendation
-    if (isLoRA && imageModelTypes.includes(modelType)) {
+    if (isLoRa && imageModelTypes.includes(modelType)) {
       opt = "adamw8bit";
       setOptimizer(opt);
-      steps.push(`\\text{Optimizer (LoRA with Images)} = \\text{${opt}}`);
+      steps.push(`\\text{Optimizer (LoRa with Images)} = \\text{${opt}}`);
     } else {
-      opt = "adamw";
+      opt = optimizer || "adamw";
       setOptimizer(opt);
       steps.push(`\\text{Optimizer} = \\text{${opt}}`);
     }
 
-    // LoRA Rank
-    if (isLoRA) {
-      steps.push(`\\text{LoRA Rank} = ${userLoraRank || 32}`);
+    // LoRa Rank
+    if (isLoRa) {
+      steps.push(`\\text{LoRa Rank} = ${userLoraRank || 32}`);
     }
 
     // Steps per Epoch Calculation
     if (!userStepsPerEpoch || userStepsPerEpoch <= 0) {
       spe = Math.ceil(assets / bs);
       setStepsPerEpoch(spe.toString());
-      steps.push(`\\text{Steps per Epoch} = \\left\\lceil \\frac{${assets}}{${bs}} \\right\\rceil = ${spe}`);
+      steps.push(
+        `\\text{Steps per Epoch} = \\left\\lceil \\frac{${assets}}{${bs}} \\right\\rceil = ${spe}`
+      );
     } else {
       spe = userStepsPerEpoch;
       steps.push(`\\text{Steps per Epoch} = ${spe}`);
@@ -184,7 +213,10 @@ export default function Home() {
       ep = userEpochs;
       const calculatedTotalSteps = ep * spe;
       if (calculatedTotalSteps !== totalStepsVal) {
-        hintsList.push("Warning: Total Steps and Epochs are inconsistent. Adjusting Total Steps.");
+        hintsList.push({
+          message: "Warning: Total Steps and Epochs are inconsistent. Adjusting Total Steps.",
+          level: "orange",
+        });
         totalStepsVal = calculatedTotalSteps;
         setTotalSteps(totalStepsVal.toString());
         steps.push(`\\text{Adjusted Total Steps} = ${ep} \\times ${spe} = ${totalStepsVal}`);
@@ -205,21 +237,26 @@ export default function Home() {
       steps.push(`\\text{Total Steps} = ${totalStepsVal}`);
     } else {
       // Neither provided, use defaults
-      if (isLoRA) {
+      if (isLoRa) {
         totalStepsVal = 1000;
         setTotalSteps(totalStepsVal.toString());
         ep = Math.ceil(totalStepsVal / spe);
         setEpochs(ep.toString());
-        steps.push(`\\text{Total Steps (LoRA Default)} = ${totalStepsVal}`);
+        steps.push(`\\text{Total Steps (LoRa Default)} = ${totalStepsVal}`);
         steps.push(`\\text{Epochs} = ${ep}`);
       } else {
-        // ... existing logic
+        totalStepsVal = 3000;
+        setTotalSteps(totalStepsVal.toString());
+        ep = Math.ceil(totalStepsVal / spe);
+        setEpochs(ep.toString());
+        steps.push(`\\text{Total Steps (Default)} = ${totalStepsVal}`);
+        steps.push(`\\text{Epochs} = ${ep}`);
       }
     }
 
     // Learning Rate Calculation
     if (!userLR || userLR <= 0) {
-      if (isLoRA) {
+      if (isLoRa) {
         lr = 0.0004;
       } else {
         lr = getDefaultLearningRate(modelType);
@@ -233,20 +270,38 @@ export default function Home() {
 
     // Provide Hints Based on Learning Rate
     if (lr < 0.00001) {
-      hintsList.push("Learning rate is very low, training may be slow.");
+      hintsList.push({
+        message: "Learning rate is very low, training may be slow.",
+        level: "orange",
+      });
     } else if (lr > 0.01) {
-      hintsList.push("Learning rate is high, may cause training instability.");
+      hintsList.push({
+        message: "Learning rate is high, may cause training instability.",
+        level: "red",
+      });
     } else {
-      hintsList.push("Learning rate is within a typical range.");
+      hintsList.push({
+        message: "Learning rate is within a typical range.",
+        level: "green",
+      });
     }
 
     // Provide Hints Based on Total Steps
     if (totalStepsVal < 1000) {
-      hintsList.push("Total steps are low, model may underfit.");
+      hintsList.push({
+        message: "Total steps are low, model may underfit.",
+        level: "orange",
+      });
     } else if (totalStepsVal > 100000) {
-      hintsList.push("Total steps are high, may cause overfitting or long training time.");
+      hintsList.push({
+        message: "Total steps are high, may cause overfitting or long training time.",
+        level: "orange",
+      });
     } else {
-      hintsList.push("Total steps are within a typical range.");
+      hintsList.push({
+        message: "Total steps are within a typical range.",
+        level: "green",
+      });
     }
 
     // Estimated Time Calculation
@@ -328,6 +383,10 @@ export default function Home() {
       >
         {/* Input Form */}
         <div className="flex flex-col gap-4 w-full max-w-md">
+        
+
+         
+
           {/* Initial Inputs */}
           <label className="flex flex-col">
             <span className="mb-1">Model Type:</span>
@@ -373,68 +432,6 @@ export default function Home() {
             </select>
           </label>
 
-          {/* New Inputs */}
-          <label className="flex flex-col">
-            <span className="mb-1">GPU Memory (GB):</span>
-            <input
-              type="number"
-              value={gpuMemory}
-              onChange={(e) => setGpuMemory(e.target.value)}
-              placeholder="Enter GPU memory size in GB"
-              className="border border-gray-300 rounded px-2 py-1"
-            />
-          </label>
-
-          {/* Conditionally Render Image Inputs */}
-          {imageModelTypes.includes(modelType) && (
-            <>
-              <label className="flex flex-col">
-                <span className="mb-1">Image Width (pixels):</span>
-                <input
-                  type="number"
-                  value={imageWidth}
-                  onChange={(e) => setImageWidth(e.target.value)}
-                  placeholder="Enter image width"
-                  className="border border-gray-300 rounded px-2 py-1"
-                />
-              </label>
-
-              <label className="flex flex-col">
-                <span className="mb-1">Image Height (pixels):</span>
-                <input
-                  type="number"
-                  value={imageHeight}
-                  onChange={(e) => setImageHeight(e.target.value)}
-                  placeholder="Enter image height"
-                  className="border border-gray-300 rounded px-2 py-1"
-                />
-              </label>
-
-              <label className="flex flex-col">
-                <span className="mb-1">Image Channels:</span>
-                <input
-                  type="number"
-                  value={imageChannels}
-                  onChange={(e) => setImageChannels(e.target.value)}
-                  placeholder="Enter number of channels (e.g., 3 for RGB)"
-                  className="border border-gray-300 rounded px-2 py-1"
-                />
-              </label>
-
-              <label className="flex flex-col">
-                <span className="mb-1">Precision (bits):</span>
-                <select
-                  value={precision}
-                  onChange={(e) => setPrecision(e.target.value)}
-                  className="border border-gray-300 rounded px-2 py-1"
-                >
-                  <option value="16">16-bit (FP16)</option>
-                  <option value="32">32-bit (FP32)</option>
-                </select>
-              </label>
-            </>
-          )}
-
           {/* Total Number of Assets */}
           <label className="flex flex-col">
             <span className="mb-1">Total Number of Assets:</span>
@@ -447,41 +444,89 @@ export default function Home() {
             />
           </label>
 
-          {/* Checkboxes */}
-          <div className="flex flex-col gap-2">
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={isFinetune}
-                onChange={(e) => setIsFinetune(e.target.checked)}
-                className="mr-2"
-              />
-              <span>Finetuning</span>
-            </label>
-
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={isLoRA}
-                onChange={(e) => setIsLoRA(e.target.checked)}
-                className="mr-2"
-              />
-              <span>LoRA Applied</span>
-            </label>
-          </div>
-
-          {/* LoRA Rank Field */}
-          {isLoRA && (
+          {/* GPU Memory Field */}
+          {(isAdvancedMode || hardware === "local") && (
             <label className="flex flex-col">
-              <span className="mb-1">LoRA Rank:</span>
+              <span className="mb-1">GPU Memory (GB):</span>
               <input
                 type="number"
-                value={loraRank}
-                onChange={(e) => setLoraRank(e.target.value)}
-                placeholder="Enter LoRA rank (e.g., 32)"
+                value={gpuMemory}
+                onChange={(e) => setGpuMemory(e.target.value)}
+                placeholder="Enter GPU memory size in GB"
                 className="border border-gray-300 rounded px-2 py-1"
               />
             </label>
+          )}
+
+          {/* Conditionally Render Advanced Fields */}
+          {isAdvancedMode && (
+            <>
+              {/* Conditionally Render Image Inputs */}
+              {imageModelTypes.includes(modelType) && (
+                <>
+                  <label className="flex flex-col">
+                    <span className="mb-1">Image Width (pixels):</span>
+                    <input
+                      type="number"
+                      value={imageWidth}
+                      onChange={(e) => setImageWidth(e.target.value)}
+                      placeholder="Enter image width"
+                      className="border border-gray-300 rounded px-2 py-1"
+                    />
+                  </label>
+
+                  <label className="flex flex-col">
+                    <span className="mb-1">Image Height (pixels):</span>
+                    <input
+                      type="number"
+                      value={imageHeight}
+                      onChange={(e) => setImageHeight(e.target.value)}
+                      placeholder="Enter image height"
+                      className="border border-gray-300 rounded px-2 py-1"
+                    />
+                  </label>
+
+                  <label className="flex flex-col">
+                    <span className="mb-1">Image Channels:</span>
+                    <input
+                      type="number"
+                      value={imageChannels}
+                      onChange={(e) => setImageChannels(e.target.value)}
+                      placeholder="Enter number of channels (e.g., 3 for RGB)"
+                      className="border border-gray-300 rounded px-2 py-1"
+                    />
+                  </label>
+
+                  <label className="flex flex-col">
+                    <span className="mb-1">Precision (bits):</span>
+                    <select
+                      value={precision}
+                      onChange={(e) => setPrecision(e.target.value)}
+                      className="border border-gray-300 rounded px-2 py-1"
+                    >
+                      <option value="16">16-bit (FP16)</option>
+                      <option value="32">32-bit (FP32)</option>
+                    </select>
+                  </label>
+                </>
+              )}
+
+              {/* Optimizer Selection */}
+              <label className="flex flex-col">
+                <span className="mb-1">Optimizer:</span>
+                <select
+                  value={optimizer}
+                  onChange={(e) => setOptimizer(e.target.value)}
+                  className="border border-gray-300 rounded px-2 py-1"
+                >
+                  {optimizerOptions.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
           )}
 
           {/* Hidden Fields - Shown After Calculation */}
@@ -521,16 +566,20 @@ export default function Home() {
                 />
               </label>
 
-              {isLoRA && (
+              {isLoRa && (
                 <label className="flex flex-col">
                   <span className="mb-1">Optimizer:</span>
-                  <input
-                    type="text"
+                  <select
                     value={optimizer}
                     onChange={(e) => setOptimizer(e.target.value)}
-                    placeholder="Enter optimizer"
                     className="border border-gray-300 rounded px-2 py-1"
-                  />
+                  >
+                    {optimizerOptions.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               )}
 
@@ -557,7 +606,55 @@ export default function Home() {
               </label>
             </>
           )}
+           {/* LoRa Rank Field */}
+           {isLoRa && (
+            <label className="flex flex-col">
+              <span className="mb-1">LoRa Rank:</span>
+              <input
+                type="number"
+                value={loraRank}
+                onChange={(e) => setLoraRank(e.target.value)}
+                placeholder="Enter LoRa rank (e.g., 32)"
+                className="border border-gray-300 rounded px-2 py-1"
+              />
+            </label>
+          )}
+ {/* Checkboxes */}
+ <div className="flex flex-col gap-2">
+    {/* Advanced Mode Toggle */}
+    <label className="flex items-center">
+            <input
+              type="checkbox"
+              checked={isAdvancedMode}
+              onChange={(e) => setIsAdvancedMode(e.target.checked)}
+              className="mr-2"
+            />
+            <span>Advanced Mode</span>
+          </label>
+            {/* Finetuning Checkbox */}
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={isFinetune}
+                onChange={(e) => setIsFinetune(e.target.checked)}
+                className="mr-2"
+              />
+              <span>Finetuning</span>
+            </label>
 
+            {/* LoRa Applied Checkbox */}
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={isLoRa}
+                onChange={(e) => setIsLoRa(e.target.checked)}
+                className="mr-2"
+              />
+              <span>LoRa Applied</span>
+            </label>
+          </div>
+
+         
           {/* Buttons */}
           <div className="flex gap-4 items-center flex-col sm:flex-row mt-4">
             {!showResults ? (
@@ -591,8 +688,8 @@ export default function Home() {
             <ul className="list-disc list-inside">
               <li>Batch Size: {batchSize}</li>
               <li>Learning Rate: {learningRate}</li>
-              {isLoRA && <li>LoRA Rank: {loraRank}</li>}
-              {isLoRA && <li>Optimizer: {optimizer}</li>}
+              {isLoRa && <li>LoRa Rank: {loraRank}</li>}
+              <li>Optimizer: {optimizer}</li>
               <li>Epochs: {epochs}</li>
               <li>Steps per Epoch: {stepsPerEpoch}</li>
               <li>Total Steps: {totalSteps}</li>
@@ -611,7 +708,18 @@ export default function Home() {
                 <h3 className="text-lg font-medium">Hints:</h3>
                 <ul className="list-disc list-inside">
                   {hints.map((hint, index) => (
-                    <li key={index}>{hint}</li>
+                    <li
+                      key={index}
+                      className={
+                        hint.level === "green"
+                          ? "text-green-600"
+                          : hint.level === "orange"
+                          ? "text-orange-600"
+                          : "text-red-600"
+                      }
+                    >
+                      {hint.message}
+                    </li>
                   ))}
                 </ul>
               </div>
