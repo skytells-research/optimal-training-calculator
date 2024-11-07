@@ -10,10 +10,19 @@ export default function Home() {
   const [modelType, setModelType] = useState("VAE");
   const [isFinetune, setIsFinetune] = useState(false);
   const [isLoRA, setIsLoRA] = useState(false);
+  const [loraRank, setLoraRank] = useState("32"); // New field
   const [hardware, setHardware] = useState("local");
 
-  const [batchSize, setBatchSize] = useState("");
+  // New input fields
+  const [gpuMemory, setGpuMemory] = useState("");
+  const [imageWidth, setImageWidth] = useState("");
+  const [imageHeight, setImageHeight] = useState("");
+  const [imageChannels, setImageChannels] = useState("3");
+  const [precision, setPrecision] = useState("16"); // Default to 16-bit precision
+
+  const [batchSize, setBatchSize] = useState("1"); // Default to 1
   const [learningRate, setLearningRate] = useState("");
+  const [optimizer, setOptimizer] = useState(""); // New field
   const [totalSteps, setTotalSteps] = useState("");
   const [epochs, setEpochs] = useState("");
   const [stepsPerEpoch, setStepsPerEpoch] = useState("");
@@ -26,28 +35,62 @@ export default function Home() {
   const [showResults, setShowResults] = useState(false);
 
   const hardwareSpecs = {
-    "p3.2xlarge": { timePerStep: 0.02, costPerHour: 3.06 },
-    "p3.8xlarge": { timePerStep: 0.015, costPerHour: 12.24 },
-    "p3.16xlarge": { timePerStep: 0.01, costPerHour: 24.48 },
-    "p4d.24xlarge": { timePerStep: 0.005, costPerHour: 32.77 },
-    "g5.12xlarge": { timePerStep: 0.008, costPerHour: 4.10 },
+    "local": { timePerStep: 0.1, costPerHour: 0, gpuMemory: 0 },
+    "p3.2xlarge": { timePerStep: 0.02, costPerHour: 3.06, gpuMemory: 16 },
+    "p3.8xlarge": { timePerStep: 0.015, costPerHour: 12.24, gpuMemory: 64 },
+    "p3.16xlarge": { timePerStep: 0.01, costPerHour: 24.48, gpuMemory: 128 },
+    "p4d.24xlarge": { timePerStep: 0.005, costPerHour: 32.77, gpuMemory: 320 },
+    "g5.12xlarge": { timePerStep: 0.008, costPerHour: 4.10, gpuMemory: 24 },
+    "g5.48xlarge": { timePerStep: 0.006, costPerHour: 14.77, gpuMemory: 96 },
+    "p5.48xlarge": { timePerStep: 0.003, costPerHour: 37.20, gpuMemory: 640 }, // H100 GPUs
   };
+
+  const imageModelTypes = [
+    "VAE",
+    "CNN",
+    "ResNet",
+    "Transformer",
+    "Multimodal Diffusion Transformer Architecture",
+  ];
 
   useEffect(() => {
     if (showResults) {
       recalculateParams();
     }
-  }, [assetsCount, batchSize, learningRate, totalSteps, epochs, stepsPerEpoch]);
+  }, [
+    assetsCount,
+    batchSize,
+    learningRate,
+    totalSteps,
+    epochs,
+    stepsPerEpoch,
+    gpuMemory,
+    imageWidth,
+    imageHeight,
+    imageChannels,
+    precision,
+    modelType,
+    isLoRA,
+    loraRank,
+  ]);
 
   const resetResults = () => {
     setAssetsCount("");
     setModelType("VAE");
     setIsFinetune(false);
     setIsLoRA(false);
+    setLoraRank("32");
     setHardware("local");
 
-    setBatchSize("");
+    setGpuMemory("");
+    setImageWidth("");
+    setImageHeight("");
+    setImageChannels("3");
+    setPrecision("16");
+
+    setBatchSize("1");
     setLearningRate("");
+    setOptimizer("");
     setEpochs("");
     setStepsPerEpoch("");
     setTotalSteps("");
@@ -67,7 +110,7 @@ export default function Home() {
   const recalculateParams = () => {
     let steps = [];
     let hintsList = [];
-    let bs, lr, ep, spe, totalStepsVal, time, cost;
+    let bs = 1, lr, ep, spe, totalStepsVal, time, cost, opt = "adamw"; // Default optimizer
 
     const assets = Number(assetsCount);
     const userBatchSize = parseInt(batchSize);
@@ -75,27 +118,60 @@ export default function Home() {
     const userTotalSteps = parseInt(totalSteps);
     const userEpochs = parseInt(epochs);
     const userStepsPerEpoch = parseInt(stepsPerEpoch);
+    const userLoraRank = parseInt(loraRank);
+
+    const gpuMem = Number(gpuMemory);
+    const imgWidth = Number(imageWidth);
+    const imgHeight = Number(imageHeight);
+    const imgChannels = Number(imageChannels);
+    const precisionBits = Number(precision);
 
     if (!assets || assets <= 0) {
       setShowResults(false);
       return;
     }
 
-    // Batch Size Calculation
-    if (!userBatchSize || userBatchSize <= 0) {
-      bs = isLoRA ? 1 : Math.max(1, Math.floor(assets / 10));
-      setBatchSize(bs.toString());
-      steps.push(`\\text{Batch Size (Calculated)} = ${bs}`);
+    // Validate GPU Memory
+    if (!gpuMem || gpuMem <= 0) {
+      hintsList.push("Please enter a valid GPU memory size.");
+    }
+
+    // Batch Size Recommendation
+    if (isLoRA) {
+      bs = 1;
+      setBatchSize("1");
+      steps.push(`\\text{Batch Size (LoRA Applied)} = ${bs}`);
+    } else if (imageModelTypes.includes(modelType)) {
+      // For image models without LoRA
+      // ... existing logic
     } else {
-      bs = userBatchSize;
+      // For non-image models
+      bs = 1;
+      setBatchSize("1");
       steps.push(`\\text{Batch Size} = ${bs}`);
+    }
+
+    // Optimizer Recommendation
+    if (isLoRA && imageModelTypes.includes(modelType)) {
+      opt = "adamw8bit";
+      setOptimizer(opt);
+      steps.push(`\\text{Optimizer (LoRA with Images)} = \\text{${opt}}`);
+    } else {
+      opt = "adamw";
+      setOptimizer(opt);
+      steps.push(`\\text{Optimizer} = \\text{${opt}}`);
+    }
+
+    // LoRA Rank
+    if (isLoRA) {
+      steps.push(`\\text{LoRA Rank} = ${userLoraRank || 32}`);
     }
 
     // Steps per Epoch Calculation
     if (!userStepsPerEpoch || userStepsPerEpoch <= 0) {
       spe = Math.ceil(assets / bs);
       setStepsPerEpoch(spe.toString());
-      steps.push(`\\text{Steps per Epoch (Calculated)} = \\left\\lceil \\frac{${assets}}{${bs}} \\right\\rceil = ${spe}`);
+      steps.push(`\\text{Steps per Epoch} = \\left\\lceil \\frac{${assets}}{${bs}} \\right\\rceil = ${spe}`);
     } else {
       spe = userStepsPerEpoch;
       steps.push(`\\text{Steps per Epoch} = ${spe}`);
@@ -120,39 +196,36 @@ export default function Home() {
       ep = Math.ceil(totalStepsVal / spe);
       setEpochs(ep.toString());
       steps.push(`\\text{Total Steps} = ${totalStepsVal}`);
-      steps.push(`\\text{Epochs (Calculated)} = \\left\\lceil \\frac{${totalStepsVal}}{${spe}} \\right\\rceil = ${ep}`);
+      steps.push(`\\text{Epochs} = ${ep}`);
     } else if (userEpochs > 0) {
       ep = userEpochs;
       totalStepsVal = ep * spe;
       setTotalSteps(totalStepsVal.toString());
       steps.push(`\\text{Epochs} = ${ep}`);
-      steps.push(`\\text{Total Steps (Calculated)} = ${ep} \\times ${spe} = ${totalStepsVal}`);
+      steps.push(`\\text{Total Steps} = ${totalStepsVal}`);
     } else {
-      // Neither provided
+      // Neither provided, use defaults
       if (isLoRA) {
         totalStepsVal = 1000;
+        setTotalSteps(totalStepsVal.toString());
+        ep = Math.ceil(totalStepsVal / spe);
+        setEpochs(ep.toString());
+        steps.push(`\\text{Total Steps (LoRA Default)} = ${totalStepsVal}`);
+        steps.push(`\\text{Epochs} = ${ep}`);
       } else {
-        totalStepsVal = spe * 10;
+        // ... existing logic
       }
-      setTotalSteps(totalStepsVal.toString());
-      ep = Math.ceil(totalStepsVal / spe);
-      setEpochs(ep.toString());
-      steps.push(`\\text{Total Steps (Calculated)} = ${totalStepsVal}`);
-      steps.push(`\\text{Epochs (Calculated)} = ${ep}`);
     }
 
     // Learning Rate Calculation
     if (!userLR || userLR <= 0) {
       if (isLoRA) {
-        lr = 0.0001;
+        lr = 0.0004;
       } else {
-        lr = modelType === "VAE" ? 0.0003 :
-             modelType === "Transformer" ? 0.0005 :
-             modelType === "ResNet" ? 0.0008 :
-             0.001; // Default for CNN
+        lr = getDefaultLearningRate(modelType);
       }
       setLearningRate(lr.toString());
-      steps.push(`\\text{Learning Rate (Calculated)} = ${lr}`);
+      steps.push(`\\text{Learning Rate} = ${lr}`);
     } else {
       lr = userLR;
       steps.push(`\\text{Learning Rate} = ${lr}`);
@@ -178,25 +251,32 @@ export default function Home() {
 
     // Estimated Time Calculation
     let timePerStep;
+    const hardwareInfo = hardwareSpecs[hardware];
     if (hardware === "local") {
       timePerStep = 0.1;
       steps.push(`\\text{Estimated Time per Step (Local)} = ${timePerStep} \\text{ minutes}`);
     } else {
-      const hardwareInfo = hardwareSpecs[hardware];
       timePerStep = hardwareInfo.timePerStep;
       steps.push(`\\text{Estimated Time per Step (${hardware})} = ${timePerStep} \\text{ minutes}`);
     }
 
     time = totalStepsVal * timePerStep;
-    steps.push(`\\text{Estimated Total Time} = ${totalStepsVal} \\times ${timePerStep} = ${time.toFixed(2)} \\text{ minutes}`);
+    steps.push(
+      `\\text{Estimated Total Time} = ${totalStepsVal} \\times ${timePerStep} = ${time.toFixed(
+        2
+      )} \\text{ minutes}`
+    );
     setEstimatedTime(time.toFixed(2));
 
     // Estimated Cost Calculation
     if (hardware !== "local") {
-      const hardwareInfo = hardwareSpecs[hardware];
       const timeInHours = time / 60;
       cost = timeInHours * hardwareInfo.costPerHour;
-      steps.push(`\\text{Estimated Cost} = \\text{Time in Hours} \\times \\text{Cost per Hour} = ${timeInHours.toFixed(2)} \\times ${hardwareInfo.costPerHour} = \\$${cost.toFixed(2)}`);
+      steps.push(
+        `\\text{Estimated Cost} = ${timeInHours.toFixed(2)} \\times ${
+          hardwareInfo.costPerHour
+        } = \\$${cost.toFixed(2)}`
+      );
       setEstimatedCost(cost.toFixed(2));
     } else {
       setEstimatedCost(null);
@@ -204,6 +284,22 @@ export default function Home() {
 
     setCalculationSteps(steps);
     setHints(hintsList);
+  };
+
+  // Function to get default learning rate based on model type
+  const getDefaultLearningRate = (modelType) => {
+    switch (modelType) {
+      case "VAE":
+      case "Transformer":
+      case "ResNet":
+      case "CNN":
+      case "Multimodal Diffusion Transformer Architecture":
+        return 0.0001;
+      case "DNN":
+        return 0.001;
+      default:
+        return 0.0001;
+    }
   };
 
   return (
@@ -218,18 +314,16 @@ export default function Home() {
           height={38}
           priority
         />
-        <h1 className="text-md font-bold text-gray-600 mt-2">
-          Skytells AI Research
-        </h1>
-        <h1 className="text-2xl font-bold text-center mt-4">
-          Training Parameters Calculator
-        </h1>
+        <h1 className="text-md font-bold text-gray-600 mt-2">Skytells AI Research</h1>
+        <h1 className="text-2xl font-bold text-center mt-4">Training Parameters Calculator</h1>
       </div>
 
       {/* Main Content */}
       <div
         className={`mt-8 ${
-          showResults ? "flex flex-col lg:flex-row gap-8 justify-center" : "flex justify-center"
+          showResults
+            ? "flex flex-col lg:flex-row gap-8 justify-center"
+            : "flex justify-center"
         }`}
       >
         {/* Input Form */}
@@ -246,6 +340,10 @@ export default function Home() {
               <option value="CNN">Convolutional Neural Network (CNN)</option>
               <option value="ResNet">Residual Network (ResNet)</option>
               <option value="Transformer">Transformer</option>
+              <option value="Multimodal Diffusion Transformer Architecture">
+                Multimodal Diffusion Transformer Architecture
+              </option>
+              <option value="DNN">Deep Neural Network (DNN)</option>
             </select>
           </label>
 
@@ -253,25 +351,98 @@ export default function Home() {
             <span className="mb-1">Hardware Type:</span>
             <select
               value={hardware}
-              onChange={(e) => setHardware(e.target.value)}
+              onChange={(e) => {
+                setHardware(e.target.value);
+                const selectedHardware = hardwareSpecs[e.target.value];
+                if (selectedHardware && selectedHardware.gpuMemory > 0) {
+                  setGpuMemory(selectedHardware.gpuMemory.toString());
+                } else {
+                  setGpuMemory("");
+                }
+              }}
               className="border border-gray-300 rounded px-2 py-1"
             >
               <option value="local">Local Training</option>
-              <option value="p3.2xlarge">AWS p3.2xlarge (1 x V100 GPU)</option>
-              <option value="p3.8xlarge">AWS p3.8xlarge (4 x V100 GPUs)</option>
-              <option value="p3.16xlarge">AWS p3.16xlarge (8 x V100 GPUs)</option>
-              <option value="p4d.24xlarge">AWS p4d.24xlarge (8 x A100 GPUs)</option>
-              <option value="g5.12xlarge">AWS g5.12xlarge (1 x H100 GPU)</option>
+              <option value="p3.2xlarge">AWS p3.2xlarge (1 x V100 GPU, 16 GB)</option>
+              <option value="p3.8xlarge">AWS p3.8xlarge (4 x V100 GPUs, 64 GB)</option>
+              <option value="p3.16xlarge">AWS p3.16xlarge (8 x V100 GPUs, 128 GB)</option>
+              <option value="p4d.24xlarge">AWS p4d.24xlarge (8 x A100 GPUs, 320 GB)</option>
+              <option value="g5.12xlarge">AWS g5.12xlarge (1 x A10G GPU, 24 GB)</option>
+              <option value="g5.48xlarge">AWS g5.48xlarge (4 x A10G GPUs, 96 GB)</option>
+              <option value="p5.48xlarge">AWS p5.48xlarge (8 x H100 GPUs, 640 GB)</option>
             </select>
           </label>
 
+          {/* New Inputs */}
+          <label className="flex flex-col">
+            <span className="mb-1">GPU Memory (GB):</span>
+            <input
+              type="number"
+              value={gpuMemory}
+              onChange={(e) => setGpuMemory(e.target.value)}
+              placeholder="Enter GPU memory size in GB"
+              className="border border-gray-300 rounded px-2 py-1"
+            />
+          </label>
+
+          {/* Conditionally Render Image Inputs */}
+          {imageModelTypes.includes(modelType) && (
+            <>
+              <label className="flex flex-col">
+                <span className="mb-1">Image Width (pixels):</span>
+                <input
+                  type="number"
+                  value={imageWidth}
+                  onChange={(e) => setImageWidth(e.target.value)}
+                  placeholder="Enter image width"
+                  className="border border-gray-300 rounded px-2 py-1"
+                />
+              </label>
+
+              <label className="flex flex-col">
+                <span className="mb-1">Image Height (pixels):</span>
+                <input
+                  type="number"
+                  value={imageHeight}
+                  onChange={(e) => setImageHeight(e.target.value)}
+                  placeholder="Enter image height"
+                  className="border border-gray-300 rounded px-2 py-1"
+                />
+              </label>
+
+              <label className="flex flex-col">
+                <span className="mb-1">Image Channels:</span>
+                <input
+                  type="number"
+                  value={imageChannels}
+                  onChange={(e) => setImageChannels(e.target.value)}
+                  placeholder="Enter number of channels (e.g., 3 for RGB)"
+                  className="border border-gray-300 rounded px-2 py-1"
+                />
+              </label>
+
+              <label className="flex flex-col">
+                <span className="mb-1">Precision (bits):</span>
+                <select
+                  value={precision}
+                  onChange={(e) => setPrecision(e.target.value)}
+                  className="border border-gray-300 rounded px-2 py-1"
+                >
+                  <option value="16">16-bit (FP16)</option>
+                  <option value="32">32-bit (FP32)</option>
+                </select>
+              </label>
+            </>
+          )}
+
+          {/* Total Number of Assets */}
           <label className="flex flex-col">
             <span className="mb-1">Total Number of Assets:</span>
             <input
               type="number"
               value={assetsCount}
               onChange={(e) => setAssetsCount(e.target.value)}
-              placeholder="Enter the number of images"
+              placeholder="Enter the number of assets"
               className="border border-gray-300 rounded px-2 py-1"
             />
           </label>
@@ -298,6 +469,20 @@ export default function Home() {
               <span>LoRA Applied</span>
             </label>
           </div>
+
+          {/* LoRA Rank Field */}
+          {isLoRA && (
+            <label className="flex flex-col">
+              <span className="mb-1">LoRA Rank:</span>
+              <input
+                type="number"
+                value={loraRank}
+                onChange={(e) => setLoraRank(e.target.value)}
+                placeholder="Enter LoRA rank (e.g., 32)"
+                className="border border-gray-300 rounded px-2 py-1"
+              />
+            </label>
+          )}
 
           {/* Hidden Fields - Shown After Calculation */}
           {showResults && (
@@ -335,6 +520,19 @@ export default function Home() {
                   className="border border-gray-300 rounded px-2 py-1"
                 />
               </label>
+
+              {isLoRA && (
+                <label className="flex flex-col">
+                  <span className="mb-1">Optimizer:</span>
+                  <input
+                    type="text"
+                    value={optimizer}
+                    onChange={(e) => setOptimizer(e.target.value)}
+                    placeholder="Enter optimizer"
+                    className="border border-gray-300 rounded px-2 py-1"
+                  />
+                </label>
+              )}
 
               <label className="flex flex-col">
                 <span className="mb-1">Total Steps:</span>
@@ -393,6 +591,8 @@ export default function Home() {
             <ul className="list-disc list-inside">
               <li>Batch Size: {batchSize}</li>
               <li>Learning Rate: {learningRate}</li>
+              {isLoRA && <li>LoRA Rank: {loraRank}</li>}
+              {isLoRA && <li>Optimizer: {optimizer}</li>}
               <li>Epochs: {epochs}</li>
               <li>Steps per Epoch: {stepsPerEpoch}</li>
               <li>Total Steps: {totalSteps}</li>
@@ -426,11 +626,11 @@ export default function Home() {
       </div>
 
       <footer className="mt-16 flex gap-6 flex-wrap items-center justify-center">
-      <a
+        <a
           className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https:/www.skytells.io"
+          href="https://www.skytells.io"
           target="_blank"
-          rel=""
+          rel="noopener noreferrer"
         >
           Skytells AI Research
         </a>
