@@ -15,7 +15,7 @@ Determining the optimal training parameters for machine learning models is a com
 
 ## Features
 
-- 🧮 **Automatic Calculation**: Computes optimal batch size, learning rate, epochs, and more based on your inputs.
+- 🧮 **Automatic Calculation**: Computes optimal batch size, learning rate, epochs.. etc.
 - 🔄 **Support for Multiple Model Architectures**:
   - **Variational Autoencoders (VAE)**
   - **Convolutional Neural Networks (CNN)**
@@ -40,7 +40,7 @@ Determining the optimal training parameters for machine learning models is a com
 - 🎯 **Real-Time Recalculation**:
   - Updates recommendations instantly as inputs change.
 - 🖥️ **Advanced Mode**:
-  - Unlocks additional settings like GPU memory, image dimensions, precision, and optimizer selection.
+  - Unlocks additional settings like GPU memory, dimensions, precision, and optimizer selection.
   - Suitable for advanced users needing fine-grained control.
 - 🛠️ **User-Friendly Interface**:
   - Intuitive design for easy navigation and input.
