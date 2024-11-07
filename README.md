@@ -177,6 +177,4 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 
 **Repository:** [optimal-training-calculator](https://github.com/skytells-research/optimal-training-calculator)
 
----
-
 **Note**: If you have any questions or need further assistance, feel free to reach out!
